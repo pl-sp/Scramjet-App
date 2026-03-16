@@ -1,0 +1,8 @@
+{
+    "users": [
+        { "user": "admin", "pass": "123456" },
+        { "user": "guest", "pass": "guestpass" }
+    ],
+    "cookieName": "scramjet_auth",
+    "token": "verified_access_888"
+}

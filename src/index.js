@@ -1,6 +1,7 @@
 import { createServer } from "node:http";
 import { fileURLToPath } from "url";
 import { hostname } from "node:os";
+import fs from "node:fs";
 import { server as wisp, logging } from "@mercuryworkshop/wisp-js/server";
 import Fastify from "fastify";
 import fastifyStatic from "@fastify/static";
@@ -12,13 +13,47 @@ import { baremuxPath } from "@mercuryworkshop/bare-mux/node";
 
 const publicPath = fileURLToPath(new URL("../public/", import.meta.url));
 
-// --- 简单权限配置 ---
-const AUTH_INFO = {
-    user: "admin",
-    pass: "123456",
+// --- 可动态管理的权限配置 ---
+// 首先尝试从 config.json 读取，允许环境变量覆盖
+let AUTH_INFO = {
+    users: [],
     cookieName: "scramjet_auth",
     token: "verified_access_888"
 };
+
+try {
+    const configPath = new URL("../config.json", import.meta.url);
+    if (fs.existsSync(configPath)) {
+        const configData = fs.readFileSync(configPath, "utf-8");
+        const parsedConfig = JSON.parse(configData);
+        Object.assign(AUTH_INFO, parsedConfig);
+    }
+} catch (err) {
+    console.warn("读取或解析 config.json 失败:", err.message);
+}
+
+// 允许环境变量覆盖（使得 Docker 配置依然兼容）
+// 如果环境变量提供了 AUTH_USER 和 AUTH_PASS，则将它们作为最优先的单用户添加或覆盖到数组中
+if (process.env.AUTH_USER && process.env.AUTH_PASS) {
+    // 覆盖第一个元素（如果存在）或直接添加入数组
+    if (AUTH_INFO.users.length > 0) {
+       AUTH_INFO.users[0] = { user: process.env.AUTH_USER, pass: process.env.AUTH_PASS };
+    } else {
+       AUTH_INFO.users.push({ user: process.env.AUTH_USER, pass: process.env.AUTH_PASS });
+    }
+} else if (process.env.AUTH_USER || process.env.AUTH_PASS) {
+    console.warn("[警告] 必须同时提供环境变量 AUTH_USER 和 AUTH_PASS 才能通过环境变量配置用户。");
+}
+
+// 确保至少有一个配置的用户，否则给一个警告
+if (AUTH_INFO.users.length === 0) {
+    console.warn("[警告] 未配置任何认证用户! 请在 config.json 或是环境变量中设置账号。为了安全，已自动设置一个随机生成的密码");
+    AUTH_INFO.users.push({ user: "admin", pass: Math.random().toString(36).slice(-10) });
+    console.warn(`[系统自动生成] user: ${AUTH_INFO.users[0].user}, pass: ${AUTH_INFO.users[0].pass}`);
+}
+
+AUTH_INFO.cookieName = process.env.AUTH_COOKIE || AUTH_INFO.cookieName;
+AUTH_INFO.token = process.env.AUTH_TOKEN || AUTH_INFO.token;
 
 logging.set_level(logging.NONE);
 Object.assign(wisp.options, {
@@ -56,7 +91,13 @@ fastify.register(fastifyCookie);
 // 1. 登录 API 接口
 fastify.post("/api/login", async (request, reply) => {
     const { user, pass } = request.body;
-    if (user === AUTH_INFO.user && pass === AUTH_INFO.pass) {
+    
+    // 检查提交的用户和密码是否匹配数组中的任何一个
+    const isValidUser = AUTH_INFO.users.some(
+        (cred) => cred.user === user && cred.pass === pass
+    );
+
+    if (isValidUser) {
         reply.setCookie(AUTH_INFO.cookieName, AUTH_INFO.token, {
             path: "/",
             httpOnly: true, // 安全：JS 无法读取
