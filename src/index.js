@@ -108,12 +108,47 @@ fastify.post("/api/login", async (request, reply) => {
     return reply.code(401).send({ success: false });
 });
 
+// 1.5 注册 API 接口
+fastify.post("/api/register", async (request, reply) => {
+    const { user, pass } = request.body;
+    
+    if (!user || user.trim() === "" || !pass || pass.trim() === "") {
+        return reply.code(400).send({ success: false, message: "用户名和密码不能为空" });
+    }
+
+    // 检查提交的用户是否已经存在
+    const isExistingUser = AUTH_INFO.users.some(
+        (cred) => cred.user === user
+    );
+
+    if (isExistingUser) {
+        return reply.code(409).send({ success: false, message: "用户名已存在" });
+    }
+
+    AUTH_INFO.users.push({ user, pass });
+
+    try {
+        const configPath = new URL("../config.json", import.meta.url);
+        let configToSave = { ...AUTH_INFO }; 
+        if (fs.existsSync(configPath)) {
+            const configData = fs.readFileSync(configPath, "utf-8");
+            const parsedConfig = JSON.parse(configData);
+            configToSave = { ...parsedConfig, users: AUTH_INFO.users };
+        }
+        fs.writeFileSync(configPath, JSON.stringify(configToSave, null, 4), "utf-8");
+    } catch (err) {
+        console.error("保存注册信息到 config.json 失败:", err.message);
+    }
+    
+    return { success: true };
+});
+
 // 2. 全局权限拦截钩子
 fastify.addHook("preHandler", async (request, reply) => {
     const url = request.url;
 
-    // 白名单：登录页、登录请求、静态资源不拦截
-    if (url === "/login.html" || url.startsWith("/api/login") || url.includes("favicon.ico")) {
+    // 白名单：登录页、登录请求、注册请求、静态资源不拦截
+    if (url === "/login.html" || url.startsWith("/api/login") || url.startsWith("/api/register") || url.includes("favicon.ico")) {
         return;
     }
 
