@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>身份验证 | Scramjet</title>
+    <title>管理员面板 | Scramjet</title>
     <style>
         :root {
             --bg-color: #0f0f12;
             --container-bg: #1a1a1f;
             --text-color: #e0e0e0;
-            --accent-color: #5865f2; /* 经典的暗色模式蓝 */
+            --accent-color: #5865f2;
             --accent-hover: #4752c4;
             --error-color: #ff4d4d;
             --input-bg: #25252b;
@@ -33,7 +33,6 @@
             overflow: hidden;
         }
 
-        /* 背景微光动效 */
         body::before {
             content: "";
             position: absolute;
@@ -90,7 +89,7 @@
             text-transform: uppercase;
         }
 
-        input {
+        input, select {
             width: 100%;
             padding: 12px 16px;
             background-color: var(--input-bg);
@@ -102,7 +101,7 @@
             outline: none;
         }
 
-        input:focus {
+        input:focus, select:focus {
             border-color: var(--accent-color);
             box-shadow: 0 0 0 2px rgba(88, 101, 242, 0.2);
         }
@@ -128,21 +127,6 @@
             transform: scale(0.98);
         }
 
-        .button-group {
-            display: flex;
-            gap: 10px;
-        }
-
-        .secondary-btn {
-            background-color: transparent;
-            border: 1px solid var(--accent-color);
-            color: var(--accent-color);
-        }
-
-        .secondary-btn:hover {
-            background-color: rgba(88, 101, 242, 0.1);
-        }
-
         #message {
             margin-top: 1rem;
             font-size: 0.85rem;
@@ -155,96 +139,125 @@
             margin-top: 2rem;
             font-size: 0.75rem;
             color: #555;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .footer a {
+            color: var(--accent-color);
+            text-decoration: none;
         }
     </style>
 </head>
 <body>
 
     <div class="login-container">
-        <h1>Scramjet 访问控制</h1>
-        <p>私有实例，请输入凭证以继续</p>
+        <h1>Scramjet 管理员面板</h1>
+        <p>添加新用户</p>
 
         <div class="form-group">
             <label for="user">用户名</label>
-            <input type="text" id="user" placeholder="输入用户名" autocomplete="off">
+            <input type="text" id="user" placeholder="输入新用户名" autocomplete="off">
         </div>
 
         <div class="form-group">
             <label for="pass">密码</label>
-            <input type="password" id="pass" placeholder="输入访问密码">
+            <input type="password" id="pass" placeholder="输入新用户密码">
         </div>
 
-        <div class="button-group">
-            <button id="loginBtn">验证并进入</button>
+        <div class="form-group">
+            <label for="role">角色</label>
+            <select id="role">
+                <option value="user">普通用户 (User)</option>
+                <option value="admin">管理员 (Admin)</option>
+            </select>
         </div>
+
+        <button id="addBtn">添加用户</button>
         
-        <div id="message">身份验证失败，请重试</div>
+        <div id="message"></div>
 
         <div class="footer">
-            Powered by MercuryWorkshop & Scramjet
+            <a href="/">&larr; 返回主页</a>
+            <span>Powered by Scramjet</span>
         </div>
     </div>
 
     <script>
-        const loginBtn = document.getElementById('loginBtn');
+        const addBtn = document.getElementById('addBtn');
         const userInp = document.getElementById('user');
         const passInp = document.getElementById('pass');
+        const roleSel = document.getElementById('role');
         const msg = document.getElementById('message');
 
-        async function handleLogin() {
+        // Check if user is actually admin
+        fetch('/api/me').then(res => {
+            if (!res.ok) window.location.href = '/login.html';
+            return res.json();
+        }).then(data => {
+            if (data.role !== 'admin') {
+                document.body.innerHTML = '<div style="color:white;text-align:center;margin-top:20vh;"><h2>403 Forbidden</h2><p>You do not have permission to view this page.</p></div>';
+            }
+        }).catch(err => {
+            window.location.href = '/login.html';
+        });
+
+        async function handleAddUser() {
             const user = userInp.value;
             const pass = passInp.value;
+            const role = roleSel.value;
 
             if (!user || !pass) {
-                showError("请填写完整信息");
+                showMsg("请填写完整信息", false);
                 return;
             }
 
-            loginBtn.innerText = "验证中...";
-            loginBtn.disabled = true;
+            addBtn.innerText = "添加中...";
+            addBtn.disabled = true;
 
             try {
-                const response = await fetch('/api/login', {
+                const response = await fetch('/api/register', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ user, pass })
+                    body: JSON.stringify({ user, pass, role })
                 });
 
                 if (response.ok) {
-                    // 登录成功，重定向到主页
-                    window.location.href = '/';
+                    showMsg("用户添加成功！", true);
+                    userInp.value = '';
+                    passInp.value = '';
+                } else if (response.status === 409) {
+                    showMsg("用户名已存在", false);
                 } else {
-                    showError("凭证错误，拒绝访问");
+                    const data = await response.json();
+                    showMsg(data.message || "添加失败", false);
                 }
             } catch (err) {
-                showError("网络错误，请稍后再试");
+                showMsg("网络错误，请稍后再试", false);
             } finally {
-                loginBtn.innerText = "验证并进入";
-                loginBtn.disabled = false;
+                addBtn.innerText = "添加用户";
+                addBtn.disabled = false;
             }
         }
 
-        }
-
-        function showError(text) {
-            msg.style.color = 'var(--error-color)';
+        function showMsg(text, isSuccess) {
+            msg.style.color = isSuccess ? '#4ade80' : 'var(--error-color)';
             msg.innerText = text;
             msg.style.visibility = 'visible';
-            // 简单的抖动反馈
-            document.querySelector('.login-container').style.animation = 'none';
-            setTimeout(() => {
-                document.querySelector('.login-container').style.animation = 'shake 0.3s';
-            }, 10);
+            
+            if (!isSuccess) {
+                document.querySelector('.login-container').style.animation = 'none';
+                setTimeout(() => {
+                    document.querySelector('.login-container').style.animation = 'shake 0.3s';
+                }, 10);
+            } else {
+                setTimeout(() => {
+                    msg.style.visibility = 'hidden';
+                }, 3000);
+            }
         }
 
-        loginBtn.addEventListener('click', handleLogin);
-
-        // 支持回车键登录
-        [userInp, passInp].forEach(input => {
-            input.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') handleLogin();
-            });
-        });
+        addBtn.addEventListener('click', handleAddUser);
     </script>
 
     <style>

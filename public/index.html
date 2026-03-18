@@ -57,10 +57,23 @@
 					>GitHub</a
 				>
 				<a title="License information" href="credits.html">Credits</a>
+                <a id="adminLink" href="admin.html" style="display: none; color: var(--accent-color, #5865f2); font-weight: bold;">User Admin Panels</a>
 			</div>
 			<div>
 				<span>Scramjet &copy; MW 2025</span>
 			</div>
 		</footer>
+
+        <script>
+            // 检查用户是否为管理员以显示管理面板链接
+            fetch('/api/me')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.role === 'admin') {
+                        document.getElementById('adminLink').style.display = 'inline';
+                    }
+                })
+                .catch(e => console.error(e));
+        </script>
 	</body>
 </html>
