@@ -166,6 +166,19 @@ fastify.post("/api/register", async (request, reply) => {
     return { success: true };
 });
 
+// 1.8 登出 API 接口
+fastify.post("/api/logout", async (request, reply) => {
+    const sessionId = request.cookies['scramjet_session'];
+    if (sessionId) {
+        SESSIONS.delete(sessionId);
+    }
+    
+    reply.clearCookie('scramjet_session', { path: "/" });
+    reply.clearCookie(AUTH_INFO.cookieName, { path: "/" });
+    
+    return { success: true };
+});
+
 // 获取当前用户信息
 fastify.get("/api/me", async (request, reply) => {
     const sessionId = request.cookies['scramjet_session'];

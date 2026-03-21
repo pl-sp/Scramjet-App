@@ -179,6 +179,7 @@
 
         <div class="footer">
             <a href="/">&larr; 返回主页</a>
+            <a id="logoutLink" href="#" style="color: var(--error-color); cursor: pointer;">注销</a>
             <span>Powered by Scramjet</span>
         </div>
     </div>
@@ -258,6 +259,16 @@
         }
 
         addBtn.addEventListener('click', handleAddUser);
+
+        document.getElementById('logoutLink').addEventListener('click', async (e) => {
+            e.preventDefault();
+            try {
+                await fetch('/api/logout', { method: 'POST' });
+                window.location.href = '/login.html';
+            } catch (err) {
+                console.error('Logout failed:', err);
+            }
+        });
     </script>
 
     <style>

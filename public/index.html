@@ -58,6 +58,7 @@
 				>
 				<a title="License information" href="credits.html">Credits</a>
                 <a id="adminLink" href="admin.html" style="display: none; color: var(--accent-color, #5865f2); font-weight: bold;">User Admin Panels</a>
+                <a id="logoutLink" href="#" style="color: var(--error-color, #ff4d4d); font-weight: bold; margin-left: 10px;">Logout</a>
 			</div>
 			<div>
 				<span>Scramjet &copy; MW 2025</span>
@@ -74,6 +75,17 @@
                     }
                 })
                 .catch(e => console.error(e));
+                
+            // 绑定登出按钮事件
+            document.getElementById('logoutLink').addEventListener('click', async (e) => {
+                e.preventDefault();
+                try {
+                    await fetch('/api/logout', { method: 'POST' });
+                    window.location.href = '/login.html';
+                } catch (err) {
+                    console.error('Logout failed:', err);
+                }
+            });
         </script>
 	</body>
 </html>
