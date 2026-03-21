@@ -177,6 +177,14 @@
         
         <div id="message"></div>
 
+        <hr style="border: 1px solid var(--border-color); margin: 1.5rem 0;">
+        <div style="text-align: left;">
+            <h3 style="font-size: 1.1rem; margin-bottom: 1rem; color: #ccc;">账户列表</h3>
+            <ul id="usersList" style="list-style: none; padding: 0; max-height: 200px; overflow-y: auto;">
+                <li style="text-align: center; color: #888; font-size: 0.85rem;">加载中...</li>
+            </ul>
+        </div>
+
         <div class="footer">
             <a href="/">&larr; 返回主页</a>
             <a id="logoutLink" href="#" style="color: var(--error-color); cursor: pointer;">注销</a>
@@ -191,6 +199,31 @@
         const roleSel = document.getElementById('role');
         const msg = document.getElementById('message');
 
+        async function loadUsers() {
+            try {
+                const res = await fetch('/api/users');
+                if (!res.ok) return;
+                const data = await res.json();
+                if (data.success && data.users) {
+                    const list = document.getElementById('usersList');
+                    list.innerHTML = '';
+                    data.users.forEach(u => {
+                        const li = document.createElement('li');
+                        li.className = 'user-item';
+                        const roleClass = u.role === 'admin' ? 'role-admin' : 'role-user';
+                        const roleName = u.role === 'admin' ? '管理员' : '普通用户';
+                        li.innerHTML = `
+                            <span style="font-weight: 500;">${u.user}</span>
+                            <span class="user-role ${roleClass}">${roleName}</span>
+                        `;
+                        list.appendChild(li);
+                    });
+                }
+            } catch (err) {
+                console.error("加载用户列表失败:", err);
+            }
+        }
+
         // Check if user is actually admin
         fetch('/api/me').then(res => {
             if (!res.ok) window.location.href = '/login.html';
@@ -198,6 +231,8 @@
         }).then(data => {
             if (data.role !== 'admin') {
                 document.body.innerHTML = '<div style="color:white;text-align:center;margin-top:20vh;"><h2>403 Forbidden</h2><p>You do not have permission to view this page.</p></div>';
+            } else {
+                loadUsers();
             }
         }).catch(err => {
             window.location.href = '/login.html';
@@ -227,6 +262,7 @@
                     showMsg("用户添加成功！", true);
                     userInp.value = '';
                     passInp.value = '';
+                    loadUsers();
                 } else if (response.status === 409) {
                     showMsg("用户名已存在", false);
                 } else {
@@ -272,6 +308,29 @@
     </script>
 
     <style>
+        .user-item {
+            background-color: var(--input-bg);
+            padding: 10px 12px;
+            margin-bottom: 8px;
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid var(--border-color);
+        }
+        .user-role {
+            font-size: 0.75rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background-color: #333;
+            color: #aaa;
+        }
+        .role-admin { background-color: rgba(88, 101, 242, 0.2); color: var(--accent-color); }
+        .role-user { background-color: rgba(74, 222, 128, 0.2); color: #4ade80; }
+        
+        #usersList::-webkit-scrollbar { width: 6px; }
+        #usersList::-webkit-scrollbar-thumb { background-color: #444; border-radius: 3px; }
+
         @keyframes shake {
             0%, 100% { transform: translateX(0); }
             25% { transform: translateX(-5px); }

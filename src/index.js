@@ -189,6 +189,17 @@ fastify.get("/api/me", async (request, reply) => {
     return { user: session.user, role: session.role };
 });
 
+// 获取所有用户信息 (仅限管理员)
+fastify.get("/api/users", async (request, reply) => {
+    const sessionId = request.cookies['scramjet_session'];
+    const session = SESSIONS.get(sessionId);
+    if (!session || session.role !== 'admin') {
+        return reply.code(403).send({ error: "Forbidden: Admins only" });
+    }
+    const usersList = AUTH_INFO.users.map(u => ({ user: u.user, role: u.role }));
+    return { success: true, users: usersList };
+});
+
 // 2. 全局权限拦截钩子
 fastify.addHook("preHandler", async (request, reply) => {
     const url = request.url;
