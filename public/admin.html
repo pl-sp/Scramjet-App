@@ -215,14 +215,70 @@
                         const roleClass = u.role === 'admin' ? 'role-admin' : 'role-user';
                         const roleName = u.role === 'admin' ? '管理员' : '普通用户';
                         li.innerHTML = `
-                            <span style="font-weight: 500;">${u.user}</span>
-                            <span class="user-role ${roleClass}">${roleName}</span>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span style="font-weight: 500;">${u.user}</span>
+                                <span class="user-role ${roleClass}">${roleName}</span>
+                            </div>
+                            <div class="user-actions">
+                                <button class="action-btn edit-btn" onclick="editUser('${u.user}', '${u.role}')">编辑</button>
+                                <button class="action-btn delete-btn" onclick="deleteUser('${u.user}')">删除</button>
+                            </div>
                         `;
                         list.appendChild(li);
                     });
                 }
             } catch (err) {
                 console.error("加载用户列表失败:", err);
+            }
+        }
+
+        async function deleteUser(username) {
+            if (!confirm(`确定要删除用户 ${username} 吗？`)) return;
+            try {
+                const res = await fetch(`/api/users/${username}`, { method: 'DELETE' });
+                const data = await res.json();
+                if (data.success) {
+                    showMsg(`用户 ${username} 已删除`, true);
+                    loadUsers();
+                } else {
+                    showMsg(data.message || '删除失败', false);
+                }
+            } catch (err) {
+                showMsg('网络错误，请稍后再试', false);
+            }
+        }
+
+        async function editUser(username, currentRole) {
+            const newPass = prompt(`修改用户 ${username} 的密码 (留空表示不修改):`);
+            if (newPass === null) return; // cancelled
+            
+            const isAdmin = confirm(`将 ${username} 设为管理员？\\n(点击“确定”为管理员，“取消”为普通用户)`);
+            const newRole = isAdmin ? 'admin' : 'user';
+
+            const payload = {};
+            if (newPass.trim() !== '') payload.pass = newPass;
+            if (newRole !== currentRole) payload.role = newRole;
+
+            if (Object.keys(payload).length === 0) {
+                showMsg('没有修改任何内容', false);
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/users/${username}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showMsg(`用户 ${username} 修改成功`, true);
+                    loadUsers();
+                } else {
+                    showMsg(data.message || '修改失败', false);
+                }
+            } catch (err) {
+                showMsg('网络错误，请稍后再试', false);
             }
         }
 
@@ -320,6 +376,25 @@
             align-items: center;
             border: 1px solid var(--border-color);
         }
+        .user-actions {
+            display: flex;
+            gap: 6px;
+        }
+        .action-btn {
+            width: auto;
+            padding: 4px 10px;
+            font-size: 0.75rem;
+            border-radius: 5px;
+            background-color: transparent;
+            border: 1px solid currentColor;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .edit-btn { color: #aaa; border-color: #555; }
+        .edit-btn:hover { background-color: rgba(255, 255, 255, 0.1); color: #fff; border-color: #888; }
+        .delete-btn { color: var(--error-color); border-color: var(--error-color); }
+        .delete-btn:hover { background-color: rgba(255, 77, 77, 0.1); }
+        
         .user-role {
             font-size: 0.75rem;
             padding: 2px 6px;

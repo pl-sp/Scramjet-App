@@ -200,6 +200,83 @@ fastify.get("/api/users", async (request, reply) => {
     return { success: true, users: usersList };
 });
 
+// 1.9 删除用户 API (仅限管理员)
+fastify.delete("/api/users/:username", async (request, reply) => {
+    const sessionId = request.cookies['scramjet_session'];
+    const session = SESSIONS.get(sessionId);
+    if (!session || session.role !== 'admin') {
+        return reply.code(403).send({ success: false, message: "只有管理员可以执行此操作" });
+    }
+    const { username } = request.params;
+    
+    const userIndex = AUTH_INFO.users.findIndex(u => u.user === username);
+    if (userIndex === -1) {
+        return reply.code(404).send({ success: false, message: "用户未找到" });
+    }
+
+    AUTH_INFO.users.splice(userIndex, 1);
+
+    try {
+        const configPath = new URL("../config.json", import.meta.url);
+        let configToSave = { ...AUTH_INFO }; 
+        if (fs.existsSync(configPath)) {
+            const configData = fs.readFileSync(configPath, "utf-8");
+            const parsedConfig = JSON.parse(configData);
+            configToSave = { ...parsedConfig, users: AUTH_INFO.users };
+        }
+        fs.writeFileSync(configPath, JSON.stringify(configToSave, null, 4), "utf-8");
+    } catch (err) {
+        console.error("保存删除信息到 config.json 失败:", err.message);
+    }
+    
+    // 清理该用户的所有活跃会话
+    for (const [sid, sess] of SESSIONS.entries()) {
+        if (sess.user === username) SESSIONS.delete(sid);
+    }
+
+    return { success: true };
+});
+
+// 1.10 编辑用户 API (仅限管理员)
+fastify.put("/api/users/:username", async (request, reply) => {
+    const sessionId = request.cookies['scramjet_session'];
+    const session = SESSIONS.get(sessionId);
+    if (!session || session.role !== 'admin') {
+        return reply.code(403).send({ success: false, message: "只有管理员可以执行此操作" });
+    }
+    const { username } = request.params;
+    const { pass, role } = request.body;
+    
+    const userObj = AUTH_INFO.users.find(u => u.user === username);
+    if (!userObj) {
+        return reply.code(404).send({ success: false, message: "用户未找到" });
+    }
+
+    if (pass) userObj.pass = pass;
+    if (role) {
+        userObj.role = role;
+        // 更新会话中的角色
+        for (const [sid, sess] of SESSIONS.entries()) {
+            if (sess.user === username) sess.role = role;
+        }
+    }
+
+    try {
+        const configPath = new URL("../config.json", import.meta.url);
+        let configToSave = { ...AUTH_INFO }; 
+        if (fs.existsSync(configPath)) {
+            const configData = fs.readFileSync(configPath, "utf-8");
+            const parsedConfig = JSON.parse(configData);
+            configToSave = { ...parsedConfig, users: AUTH_INFO.users };
+        }
+        fs.writeFileSync(configPath, JSON.stringify(configToSave, null, 4), "utf-8");
+    } catch (err) {
+        console.error("保存编辑信息到 config.json 失败:", err.message);
+    }
+
+    return { success: true };
+});
+
 // 2. 全局权限拦截钩子
 fastify.addHook("preHandler", async (request, reply) => {
     const url = request.url;
