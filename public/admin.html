@@ -201,7 +201,7 @@
         const roleSel = document.getElementById('role');
         const msg = document.getElementById('message');
 
-        async function loadUsers() {
+        async function loadUsers(currentUser) {
             try {
                 const res = await fetch('/api/users');
                 if (!res.ok) return;
@@ -214,15 +214,24 @@
                         li.className = 'user-item';
                         const roleClass = u.role === 'admin' ? 'role-admin' : 'role-user';
                         const roleName = u.role === 'admin' ? '管理员' : '普通用户';
+
+                        let actionsHtml = '';
+                        const canDelete = u.user !== 'admin';
+                        const canEdit = u.user !== 'admin' || currentUser === 'admin';
+
+                        if (canEdit || canDelete) {
+                            actionsHtml += '<div class="user-actions">';
+                            if (canEdit) actionsHtml += `<button class="action-btn edit-btn" onclick="editUser('${u.user}', '${u.role}')">编辑</button>`;
+                            if (canDelete) actionsHtml += `<button class="action-btn delete-btn" onclick="deleteUser('${u.user}')">删除</button>`;
+                            actionsHtml += '</div>';
+                        }
+
                         li.innerHTML = `
                             <div style="display: flex; align-items: center; gap: 8px;">
                                 <span style="font-weight: 500;">${u.user}</span>
                                 <span class="user-role ${roleClass}">${roleName}</span>
                             </div>
-                            <div class="user-actions">
-                                <button class="action-btn edit-btn" onclick="editUser('${u.user}', '${u.role}')">编辑</button>
-                                <button class="action-btn delete-btn" onclick="deleteUser('${u.user}')">删除</button>
-                            </div>
+                            ${actionsHtml}
                         `;
                         list.appendChild(li);
                     });
@@ -239,7 +248,9 @@
                 const data = await res.json();
                 if (data.success) {
                     showMsg(`用户 ${username} 已删除`, true);
-                    loadUsers();
+                    // Pass currentUser to loadUsers by fetching me again or extracting from somewhere
+                    // Or simply reload page to be safe, or call fetch('/api/me') again
+                    window.location.reload();
                 } else {
                     showMsg(data.message || '删除失败', false);
                 }
@@ -273,7 +284,7 @@
                 const data = await res.json();
                 if (data.success) {
                     showMsg(`用户 ${username} 修改成功`, true);
-                    loadUsers();
+                    window.location.reload();
                 } else {
                     showMsg(data.message || '修改失败', false);
                 }
@@ -290,7 +301,7 @@
             if (data.role !== 'admin') {
                 document.body.innerHTML = '<div style="color:white;text-align:center;margin-top:20vh;"><h2>403 Forbidden</h2><p>You do not have permission to view this page.</p></div>';
             } else {
-                loadUsers();
+                loadUsers(data.user);
             }
         }).catch(err => {
             window.location.href = '/login.html';
@@ -320,7 +331,7 @@
                     showMsg("用户添加成功！", true);
                     userInp.value = '';
                     passInp.value = '';
-                    loadUsers();
+                    window.location.reload();
                 } else if (response.status === 409) {
                     showMsg("用户名已存在", false);
                 } else {

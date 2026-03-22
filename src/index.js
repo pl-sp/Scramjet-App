@@ -208,6 +208,10 @@ fastify.delete("/api/users/:username", async (request, reply) => {
         return reply.code(403).send({ success: false, message: "只有管理员可以执行此操作" });
     }
     const { username } = request.params;
+
+    if (username === 'admin') {
+        return reply.code(403).send({ success: false, message: "内置 admin 账号不能被删除" });
+    }
     
     const userIndex = AUTH_INFO.users.findIndex(u => u.user === username);
     if (userIndex === -1) {
@@ -246,6 +250,10 @@ fastify.put("/api/users/:username", async (request, reply) => {
     }
     const { username } = request.params;
     const { pass, role } = request.body;
+
+    if (username === 'admin' && session.user !== 'admin') {
+        return reply.code(403).send({ success: false, message: "非 admin 账号不能修改 admin 账号信息" });
+    }
     
     const userObj = AUTH_INFO.users.find(u => u.user === username);
     if (!userObj) {
