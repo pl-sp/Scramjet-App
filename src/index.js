@@ -7,7 +7,7 @@ import { server as wisp, logging } from "@mercuryworkshop/wisp-js/server";
 import Fastify from "fastify";
 import fastifyStatic from "@fastify/static";
 import fastifyCookie from "@fastify/cookie";
-import Database from "better-sqlite3";
+import initSqlJs from "sql.js";
 
 import { scramjetPath } from "@mercuryworkshop/scramjet/path";
 import { libcurlPath } from "@mercuryworkshop/libcurl-transport";
@@ -15,26 +15,76 @@ import { baremuxPath } from "@mercuryworkshop/bare-mux/node";
 
 const publicPath = fileURLToPath(new URL("../public/", import.meta.url));
 
-// --- 初始化 SQLite 数据库 ---
+// --- 纯 JavaScript 版本 SQLite (sql.js) ---
+const SQL = await initSqlJs();
 const dbPath = fileURLToPath(new URL("../scramjet.db", import.meta.url));
-const db = new Database(dbPath);
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
 
-// 初始化表
-db.exec(`
-    CREATE TABLE IF NOT EXISTS users (
-        username TEXT PRIMARY KEY,
-        password TEXT NOT NULL,
-        role TEXT NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS sessions (
-        id TEXT PRIMARY KEY,
-        username TEXT NOT NULL,
-        expires_at INTEGER NOT NULL,
-        FOREIGN KEY(username) REFERENCES users(username) ON DELETE CASCADE
-    );
-`);
+let db;
+if (fs.existsSync(dbPath)) {
+    const filebuffer = fs.readFileSync(dbPath);
+    db = new SQL.Database(filebuffer);
+} else {
+    db = new SQL.Database();
+    // 初始化表: SQLite 在 sql.js 下不支持 PRAGMA foreign_keys = ON 保存到文件，因此后续需要手动清理 CASCADE 逻辑
+    db.run(`
+        CREATE TABLE IF NOT EXISTS users (
+            username TEXT PRIMARY KEY,
+            password TEXT NOT NULL,
+            role TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS sessions (
+            id TEXT PRIMARY KEY,
+            username TEXT NOT NULL,
+            expires_at INTEGER NOT NULL
+        );
+    `);
+    saveDb();
+}
+
+// 保存数据库到文件
+function saveDb() {
+    const data = db.export();
+    fs.writeFileSync(dbPath, Buffer.from(data), { encoding: null });
+}
+
+// 辅助包装器
+function execute(sql, params = []) {
+    db.run(sql, params);
+    const changes = db.getRowsModified();
+    saveDb();
+    return changes;
+}
+
+function getOne(sql, params = []) {
+    const stmt = db.prepare(sql);
+    let result = null;
+    try {
+        if (stmt.step(params)) {
+            result = stmt.getAsObject();
+        }
+    } catch (e) {
+        console.error("SQL.js getOne 查询错误:", e);
+    } finally {
+        stmt.free();
+    }
+    return result;
+}
+
+function getAll(sql, params = []) {
+    const stmt = db.prepare(sql);
+    const results = [];
+    try {
+        stmt.bind(params);
+        while (stmt.step()) {
+            results.push(stmt.getAsObject());
+        }
+    } catch (e) {
+        console.error("SQL.js getAll 查询错误:", e);
+    } finally {
+        stmt.free();
+    }
+    return results;
+}
 
 // --- 尝试从旧版的 config.json 迁移数据 ---
 const configUrl = new URL("../config.json", import.meta.url);
@@ -44,14 +94,12 @@ if (fs.existsSync(configPath)) {
         const configData = fs.readFileSync(configPath, "utf-8");
         const parsedConfig = JSON.parse(configData);
         if (parsedConfig.users && Array.isArray(parsedConfig.users)) {
-            const insertUser = db.prepare('INSERT OR IGNORE INTO users (username, password, role) VALUES (?, ?, ?)');
-            const insertMany = db.transaction((users) => {
-                for (const u of users) {
-                    insertUser.run(u.user, u.pass, u.role || (u.user === 'admin' ? 'admin' : 'user'));
-                }
-            });
-            insertMany(parsedConfig.users);
-            console.log("[系统升级] 已从 config.json 成功迁移用户数据到 SQLite 数据库");
+            for (const u of parsedConfig.users) {
+                try {
+                    execute('INSERT INTO users (username, password, role) VALUES (?, ?, ?)', [u.user, u.pass, u.role || (u.user === 'admin' ? 'admin' : 'user')]);
+                } catch (ignoreDuplicate) { }
+            }
+            console.log("[系统升级] 已从 config.json 成功迁移用户数据到纯 JS 版本 SQLite 数据库");
         }
         // 重命名防止未来再次读取
         fs.renameSync(configPath, configPath + '.bak');
@@ -62,17 +110,17 @@ if (fs.existsSync(configPath)) {
 
 // 允许环境变量覆盖
 if (process.env.AUTH_USER && process.env.AUTH_PASS) {
-    db.prepare('INSERT OR REPLACE INTO users (username, password, role) VALUES (?, ?, ?)').run(process.env.AUTH_USER, process.env.AUTH_PASS, 'admin');
+    execute('INSERT OR REPLACE INTO users (username, password, role) VALUES (?, ?, ?)', [process.env.AUTH_USER, process.env.AUTH_PASS, 'admin']);
 } else if (process.env.AUTH_USER || process.env.AUTH_PASS) {
     console.warn("[警告] 必须同时提供环境变量 AUTH_USER 和 AUTH_PASS 才能通过环境变量配置用户。");
 }
 
 // 确保至少有一个配置的用户
-const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get().count;
-if (userCount === 0) {
+const userCountObj = getOne('SELECT COUNT(*) as count FROM users');
+if (!userCountObj || userCountObj.count === 0) {
     const defaultPassword = Math.random().toString(36).slice(-10);
     console.warn("[警告] 数据库中未配置任何认证用户! 已自动生成初始 admin 账户。为了安全，已自动设置随机生成的密码");
-    db.prepare('INSERT INTO users (username, password, role) VALUES (?, ?, ?)').run('admin', defaultPassword, 'admin');
+    execute('INSERT INTO users (username, password, role) VALUES (?, ?, ?)', ['admin', defaultPassword, 'admin']);
     console.warn(`[系统自动生成] user: admin, pass: ${defaultPassword}`);
 }
 
@@ -100,7 +148,7 @@ const fastify = Fastify({
 
                 let isAuthenticated = false;
                 if (sessionId) {
-                    const session = db.prepare('SELECT * FROM sessions WHERE id = ? AND expires_at > ?').get(sessionId, Date.now());
+                    const session = getOne('SELECT * FROM sessions WHERE id = ? AND expires_at > ?', [sessionId, Date.now()]);
                     if (session) {
                         isAuthenticated = true;
                     }
@@ -123,7 +171,7 @@ fastify.register(fastifyCookie);
 function getSessionUser(request) {
     const sessionId = request.cookies['scramjet_session'];
     if (!sessionId) return null;
-    const session = db.prepare('SELECT s.username, u.role FROM sessions s JOIN users u ON s.username = u.username WHERE s.id = ? AND s.expires_at > ?').get(sessionId, Date.now());
+    const session = getOne('SELECT s.username, u.role FROM sessions s JOIN users u ON s.username = u.username WHERE s.id = ? AND s.expires_at > ?', [sessionId, Date.now()]);
     if (!session) return null;
     return { user: session.username, role: session.role };
 }
@@ -133,13 +181,13 @@ fastify.post("/api/login", async (request, reply) => {
     const { user, pass } = request.body;
     
     // 检查密码
-    const userRow = db.prepare('SELECT * FROM users WHERE username = ? AND password = ?').get(user, pass);
+    const userRow = getOne('SELECT * FROM users WHERE username = ? AND password = ?', [user, pass]);
 
     if (userRow) {
         const sessionId = crypto.randomBytes(16).toString('hex');
         const expiresAt = Date.now() + 86400 * 1000; // 24小时
 
-        db.prepare('INSERT INTO sessions (id, username, expires_at) VALUES (?, ?, ?)').run(sessionId, userRow.username, expiresAt);
+        execute('INSERT INTO sessions (id, username, expires_at) VALUES (?, ?, ?)', [sessionId, userRow.username, expiresAt]);
 
         reply.setCookie('scramjet_session', sessionId, {
             path: "/",
@@ -166,14 +214,18 @@ fastify.post("/api/register", async (request, reply) => {
         return reply.code(400).send({ success: false, message: "用户名和密码不能为空" });
     }
 
+    // sql.js constraint errors are usually thrown as generic exceptions.
+    // Ensure uniqueness manually to be safe.
+    const existingUser = getOne('SELECT * FROM users WHERE username = ?', [user]);
+    if (existingUser) {
+        return reply.code(409).send({ success: false, message: "用户名已存在" });
+    }
+
     try {
-        db.prepare('INSERT INTO users (username, password, role) VALUES (?, ?, ?)').run(user, pass, role);
+        execute('INSERT INTO users (username, password, role) VALUES (?, ?, ?)', [user, pass, role]);
         return { success: true };
     } catch (err) {
-        if (err.code === 'SQLITE_CONSTRAINT_PRIMARYKEY') {
-            return reply.code(409).send({ success: false, message: "用户名已存在" });
-        }
-        return reply.code(500).send({ success: false, message: "内部服务器错误" });
+        return reply.code(500).send({ success: false, message: "内部服务器错误: " + err.message });
     }
 });
 
@@ -181,7 +233,7 @@ fastify.post("/api/register", async (request, reply) => {
 fastify.post("/api/logout", async (request, reply) => {
     const sessionId = request.cookies['scramjet_session'];
     if (sessionId) {
-        db.prepare('DELETE FROM sessions WHERE id = ?').run(sessionId);
+        execute('DELETE FROM sessions WHERE id = ?', [sessionId]);
     }
     
     reply.clearCookie('scramjet_session', { path: "/" });
@@ -204,7 +256,7 @@ fastify.get("/api/users", async (request, reply) => {
     if (!sessionUser || sessionUser.role !== 'admin') {
         return reply.code(403).send({ error: "Forbidden: Admins only" });
     }
-    const usersList = db.prepare('SELECT username as user, role FROM users').all();
+    const usersList = getAll('SELECT username as user, role FROM users');
     return { success: true, users: usersList };
 });
 
@@ -220,11 +272,13 @@ fastify.delete("/api/users/:username", async (request, reply) => {
         return reply.code(403).send({ success: false, message: "内置 admin 账号不能被删除" });
     }
     
-    // SQLite's ON DELETE CASCADE will handle deleting sessions if PRAGMA foreign_keys = ON;
-    const info = db.prepare('DELETE FROM users WHERE username = ?').run(username);
-    if (info.changes === 0) {
+    const changes = execute('DELETE FROM users WHERE username = ?', [username]);
+    if (changes === 0) {
         return reply.code(404).send({ success: false, message: "用户未找到" });
     }
+    
+    // SQLite 的 ON DELETE CASCADE 可能在手动 Wasm 模式不一定可靠（且前面建表没依赖Pragma），这里手动清理一下 session，保证退出
+    execute('DELETE FROM sessions WHERE username = ?', [username]);
 
     return { success: true };
 });
@@ -242,16 +296,16 @@ fastify.put("/api/users/:username", async (request, reply) => {
         return reply.code(403).send({ success: false, message: "非 admin 账号不能修改 admin 账号信息" });
     }
     
-    const userRow = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
+    const userRow = getOne('SELECT * FROM users WHERE username = ?', [username]);
     if (!userRow) {
         return reply.code(404).send({ success: false, message: "用户未找到" });
     }
 
     if (pass) {
-        db.prepare('UPDATE users SET password = ? WHERE username = ?').run(pass, username);
+        execute('UPDATE users SET password = ? WHERE username = ?', [pass, username]);
     }
     if (role) {
-        db.prepare('UPDATE users SET role = ? WHERE username = ?').run(role, username);
+        execute('UPDATE users SET role = ? WHERE username = ?', [role, username]);
     }
 
     return { success: true };
