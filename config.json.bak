@@ -1,0 +1,16 @@
+{
+    "users": [
+        {
+            "user": "admin",
+            "pass": "123456",
+            "role": "admin"
+        },
+        {
+            "user": "testuser",
+            "pass": "password",
+            "role": "user"
+        }
+    ],
+    "cookieName": "scramjet_auth",
+    "token": "verified_access_888"
+}
