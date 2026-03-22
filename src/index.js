@@ -25,21 +25,22 @@ if (fs.existsSync(dbPath)) {
     db = new SQL.Database(filebuffer);
 } else {
     db = new SQL.Database();
-    // 初始化表: SQLite 在 sql.js 下不支持 PRAGMA foreign_keys = ON 保存到文件，因此后续需要手动清理 CASCADE 逻辑
-    db.run(`
-        CREATE TABLE IF NOT EXISTS users (
-            username TEXT PRIMARY KEY,
-            password TEXT NOT NULL,
-            role TEXT NOT NULL
-        );
-        CREATE TABLE IF NOT EXISTS sessions (
-            id TEXT PRIMARY KEY,
-            username TEXT NOT NULL,
-            expires_at INTEGER NOT NULL
-        );
-    `);
-    saveDb();
 }
+
+// 始终确保表结构存在 (防止文件存在但为空，如由于 WAL 模式留下的空文件)
+db.run(`
+    CREATE TABLE IF NOT EXISTS users (
+        username TEXT PRIMARY KEY,
+        password TEXT NOT NULL,
+        role TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS sessions (
+        id TEXT PRIMARY KEY,
+        username TEXT NOT NULL,
+        expires_at INTEGER NOT NULL
+    );
+`);
+saveDb();
 
 // 保存数据库到文件
 function saveDb() {
