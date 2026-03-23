@@ -60,7 +60,8 @@ function getOne(sql, params = []) {
     const stmt = db.prepare(sql);
     let result = null;
     try {
-        if (stmt.step(params)) {
+        stmt.bind(params);
+        if (stmt.step()) {
             result = stmt.getAsObject();
         }
     } catch (e) {
