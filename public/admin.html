@@ -194,6 +194,19 @@
         </div>
     </div>
 
+    <!-- 自定义模态框载体 -->
+    <div id="customModal" class="modal-overlay" style="display: none;">
+        <div class="modal-content" style="text-align: center;">
+            <h3 id="modalTitle">标题</h3>
+            <p id="modalDesc" style="margin-bottom: 1rem; color: #aaa; font-size: 0.9rem;"></p>
+            <div id="modalBody" style="text-align: left;"></div>
+            <div class="modal-buttons" style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 1.5rem;">
+                <button id="modalCancelBtn" class="action-btn edit-btn" style="width: auto; padding: 8px 16px;">取消</button>
+                <button id="modalConfirmBtn" style="width: auto; padding: 8px 16px; background-color: var(--accent-color); color: white; border: none; border-radius: 6px; cursor: pointer;"></button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const addBtn = document.getElementById('addBtn');
         const userInp = document.getElementById('user');
@@ -241,15 +254,65 @@
             }
         }
 
+        function showModal(options) {
+            return new Promise((resolve) => {
+                const modal = document.getElementById('customModal');
+                document.getElementById('modalTitle').innerText = options.title;
+                document.getElementById('modalDesc').innerText = options.desc || '';
+                document.getElementById('modalBody').innerHTML = options.bodyHtml || '';
+                
+                const cancelBtn = document.getElementById('modalCancelBtn');
+                const confirmBtn = document.getElementById('modalConfirmBtn');
+                
+                cancelBtn.innerText = options.cancelText || '取消';
+                confirmBtn.innerText = options.confirmText || '确定';
+                
+                if (options.confirmColor) {
+                    confirmBtn.style.backgroundColor = options.confirmColor;
+                } else {
+                    confirmBtn.style.backgroundColor = 'var(--accent-color)';
+                }
+                
+                const close = (result) => {
+                    modal.style.display = 'none';
+                    cancelBtn.onclick = null;
+                    confirmBtn.onclick = null;
+                    resolve(result);
+                };
+                
+                cancelBtn.onclick = () => close(null);
+                confirmBtn.onclick = () => {
+                    if (options.onConfirm) {
+                        const res = options.onConfirm();
+                        if (res !== false) close(res);
+                    } else {
+                        close(true);
+                    }
+                };
+                
+                modal.style.display = 'flex';
+                
+                const firstInput = modal.querySelector('input, select');
+                if (firstInput) firstInput.focus();
+            });
+        }
+
         async function deleteUser(username) {
-            if (!confirm(`确定要删除用户 ${username} 吗？`)) return;
+            const result = await showModal({
+                title: '确认删除',
+                desc: `确定要永久删除用户 ${username} 吗？此操作无法撤销。`,
+                confirmText: '确认删除',
+                confirmColor: 'var(--error-color)',
+                onConfirm: () => true
+            });
+
+            if (!result) return;
+            
             try {
                 const res = await fetch(`/api/users/${username}`, { method: 'DELETE' });
                 const data = await res.json();
                 if (data.success) {
                     showMsg(`用户 ${username} 已删除`, true);
-                    // Pass currentUser to loadUsers by fetching me again or extracting from somewhere
-                    // Or simply reload page to be safe, or call fetch('/api/me') again
                     window.location.reload();
                 } else {
                     showMsg(data.message || '删除失败', false);
@@ -260,15 +323,37 @@
         }
 
         async function editUser(username, currentRole) {
-            const newPass = prompt(`修改用户 ${username} 的密码 (留空表示不修改):`);
-            if (newPass === null) return; // cancelled
-            
-            const isAdmin = confirm(`将 ${username} 设为管理员？\\n(点击“确定”为管理员，“取消”为普通用户)`);
-            const newRole = isAdmin ? 'admin' : 'user';
+            const bodyHtml = `
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label for="editPassInp" style="font-size: 0.75rem;">修改密码 (留空表示不修改)</label>
+                    <input type="text" id="editPassInp" placeholder="输入新密码" style="margin-top: 4px;" autocomplete="off">
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label for="editRoleSel" style="font-size: 0.75rem;">角色</label>
+                    <select id="editRoleSel" style="margin-top: 4px;">
+                        <option value="user" ${currentRole === 'user' ? 'selected' : ''}>普通用户 (User)</option>
+                        <option value="admin" ${currentRole === 'admin' ? 'selected' : ''}>管理员 (Admin)</option>
+                    </select>
+                </div>
+            `;
 
+            const result = await showModal({
+                title: `编辑用户: ${username}`,
+                bodyHtml: bodyHtml,
+                confirmText: '保存修改',
+                onConfirm: () => {
+                    return {
+                        newPass: document.getElementById('editPassInp').value,
+                        newRole: document.getElementById('editRoleSel').value
+                    };
+                }
+            });
+
+            if (!result) return;
+            
             const payload = {};
-            if (newPass.trim() !== '') payload.pass = newPass;
-            if (newRole !== currentRole) payload.role = newRole;
+            if (result.newPass.trim() !== '') payload.pass = result.newPass;
+            if (result.newRole !== currentRole) payload.role = result.newRole;
 
             if (Object.keys(payload).length === 0) {
                 showMsg('没有修改任何内容', false);
@@ -424,6 +509,26 @@
             25% { transform: translateX(-5px); }
             75% { transform: translateX(5px); }
         }
+
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex; justify-content: center; align-items: center;
+            z-index: 1000;
+            backdrop-filter: blur(4px);
+            animation: fadeIn 0.15s ease-out;
+        }
+        .modal-content {
+            background: var(--container-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 24px;
+            width: 90%; max-width: 400px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+            animation: slideUp 0.15s ease-out;
+        }
+        .modal-content h3 { margin-bottom: 0.5rem; font-size: 1.25rem; }
+        @keyframes slideUp { from { transform: translateY(15px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
     </style>
 </body>
 </html>
