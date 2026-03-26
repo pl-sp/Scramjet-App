@@ -188,7 +188,8 @@ function getSessionUser(request) {
 // 1. 登录 API 接口
 fastify.post("/api/login", async (request, reply) => {
     const { user, pass } = request.body;
-    const ip = request.ip || request.socket.remoteAddress || 'unknown';
+    let ip = request.headers['x-forwarded-for'] || request.headers['x-real-ip'] || request.ip || 'unknown';
+    if (typeof ip === 'string' && ip.includes(',')) ip = ip.split(',')[0].trim();
     const loginTime = Date.now();
     
     // 检查密码
