@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>管理员面板 | Scramjet</title>
+    <title>账户管理 | Scramjet</title>
     <style>
         :root {
             --bg-color: #0f0f12;
@@ -154,34 +154,16 @@
 <body>
 
     <div class="login-container">
-        <h1>Scramjet 管理员面板</h1>
-        <p>添加新用户</p>
+        <h1>Scramjet 账户管理</h1>
+        <p>管理系统用户和角色</p>
 
-        <div class="form-group">
-            <label for="user">用户名</label>
-            <input type="text" id="user" placeholder="输入新用户名" autocomplete="off">
-        </div>
-
-        <div class="form-group">
-            <label for="pass">密码</label>
-            <input type="password" id="pass" placeholder="输入新用户密码">
-        </div>
-
-        <div class="form-group">
-            <label for="role">角色</label>
-            <select id="role">
-                <option value="user">普通用户 (User)</option>
-                <option value="admin">管理员 (Admin)</option>
-            </select>
-        </div>
-
-        <button id="addBtn">添加用户</button>
-        
         <div id="message"></div>
 
-        <hr style="border: 1px solid var(--border-color); margin: 1.5rem 0;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; margin-top: 1rem;">
+            <h3 style="font-size: 1.1rem; color: #ccc; margin: 0;">账户列表</h3>
+            <a href="/add_user.html" style="background-color: var(--accent-color); color: white; padding: 6px 12px; text-decoration: none; border-radius: 6px; font-size: 0.85rem; transition: background 0.2s;">+ 添加用户</a>
+        </div>
         <div style="text-align: left;">
-            <h3 style="font-size: 1.1rem; margin-bottom: 1rem; color: #ccc;">账户列表</h3>
             <ul id="usersList" style="list-style: none; padding: 0; max-height: 200px; overflow-y: auto;">
                 <li style="text-align: center; color: #888; font-size: 0.85rem;">加载中...</li>
             </ul>
@@ -208,10 +190,6 @@
     </div>
 
     <script>
-        const addBtn = document.getElementById('addBtn');
-        const userInp = document.getElementById('user');
-        const passInp = document.getElementById('pass');
-        const roleSel = document.getElementById('role');
         const msg = document.getElementById('message');
 
         async function loadUsers(currentUser) {
@@ -392,44 +370,7 @@
             window.location.href = '/login.html';
         });
 
-        async function handleAddUser() {
-            const user = userInp.value;
-            const pass = passInp.value;
-            const role = roleSel.value;
 
-            if (!user || !pass) {
-                showMsg("请填写完整信息", false);
-                return;
-            }
-
-            addBtn.innerText = "添加中...";
-            addBtn.disabled = true;
-
-            try {
-                const response = await fetch('/api/register', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ user, pass, role })
-                });
-
-                if (response.ok) {
-                    showMsg("用户添加成功！", true);
-                    userInp.value = '';
-                    passInp.value = '';
-                    window.location.reload();
-                } else if (response.status === 409) {
-                    showMsg("用户名已存在", false);
-                } else {
-                    const data = await response.json();
-                    showMsg(data.message || "添加失败", false);
-                }
-            } catch (err) {
-                showMsg("网络错误，请稍后再试", false);
-            } finally {
-                addBtn.innerText = "添加用户";
-                addBtn.disabled = false;
-            }
-        }
 
         function showMsg(text, isSuccess) {
             msg.style.color = isSuccess ? '#4ade80' : 'var(--error-color)';
@@ -448,7 +389,7 @@
             }
         }
 
-        addBtn.addEventListener('click', handleAddUser);
+
 
         document.getElementById('logoutLink').addEventListener('click', async (e) => {
             e.preventDefault();
