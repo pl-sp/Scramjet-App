@@ -39,6 +39,13 @@ db.run(`
         username TEXT NOT NULL,
         expires_at INTEGER NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS login_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL,
+        login_time INTEGER NOT NULL,
+        ip_address TEXT,
+        status TEXT NOT NULL
+    );
 `);
 saveDb();
 
@@ -181,6 +188,8 @@ function getSessionUser(request) {
 // 1. 登录 API 接口
 fastify.post("/api/login", async (request, reply) => {
     const { user, pass } = request.body;
+    const ip = request.ip || request.socket.remoteAddress || 'unknown';
+    const loginTime = Date.now();
     
     // 检查密码
     const userRow = getOne('SELECT * FROM users WHERE username = ? AND password = ?', [user, pass]);
@@ -190,6 +199,7 @@ fastify.post("/api/login", async (request, reply) => {
         const expiresAt = Date.now() + 86400 * 1000; // 24小时
 
         execute('INSERT INTO sessions (id, username, expires_at) VALUES (?, ?, ?)', [sessionId, userRow.username, expiresAt]);
+        execute('INSERT INTO login_history (username, login_time, ip_address, status) VALUES (?, ?, ?, ?)', [userRow.username, loginTime, ip, 'success']);
 
         reply.setCookie('scramjet_session', sessionId, {
             path: "/",
@@ -199,6 +209,8 @@ fastify.post("/api/login", async (request, reply) => {
         
         return { success: true };
     }
+    
+    execute('INSERT INTO login_history (username, login_time, ip_address, status) VALUES (?, ?, ?, ?)', [user || 'unknown', loginTime, ip, 'failed']);
     return reply.code(401).send({ success: false });
 });
 
@@ -267,6 +279,18 @@ fastify.get("/api/users", async (request, reply) => {
     }
     
     return { success: true, users: usersList };
+});
+
+// 获取所有登录日志 (仅限管理员)
+fastify.get("/api/login_history", async (request, reply) => {
+    const sessionUser = getSessionUser(request);
+    if (!sessionUser || sessionUser.role !== 'admin') {
+        return reply.code(403).send({ error: "Forbidden: Admins only" });
+    }
+    
+    // 只获取最近的 200 条记录
+    const history = getAll('SELECT id, username, login_time, ip_address, status FROM login_history ORDER BY login_time DESC LIMIT 200');
+    return { success: true, history };
 });
 
 // 1.9 删除用户 API (仅限管理员)

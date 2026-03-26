@@ -161,7 +161,10 @@
 
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; margin-top: 1rem;">
             <h3 style="font-size: 1.1rem; color: #ccc; margin: 0;">账户列表</h3>
-            <a href="/add_user.html" style="background-color: var(--accent-color); color: white; padding: 6px 12px; text-decoration: none; border-radius: 6px; font-size: 0.85rem; transition: background 0.2s;">+ 添加用户</a>
+            <div style="display: flex; gap: 8px;">
+                <a href="/login_history.html" style="background-color: transparent; border: 1px solid var(--accent-color); color: var(--accent-color); padding: 5px 12px; text-decoration: none; border-radius: 6px; font-size: 0.85rem; transition: all 0.2s;">登录日志</a>
+                <a href="/add_user.html" style="background-color: var(--accent-color); color: white; padding: 6px 12px; text-decoration: none; border-radius: 6px; font-size: 0.85rem; transition: background 0.2s;">+ 添加用户</a>
+            </div>
         </div>
         <div style="text-align: left;">
             <ul id="usersList" style="list-style: none; padding: 0; max-height: 200px; overflow-y: auto;">
