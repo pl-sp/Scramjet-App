@@ -289,8 +289,15 @@ fastify.get("/api/login_history", async (request, reply) => {
         return reply.code(403).send({ error: "Forbidden: Admins only" });
     }
     
-    // 只获取最近的 200 条记录
-    const history = getAll('SELECT id, username, login_time, ip_address, status FROM login_history ORDER BY login_time DESC LIMIT 200');
+    const q = request.query.q || '';
+    let history;
+    if (q) {
+        const likeQ = `%${q}%`;
+        history = getAll('SELECT id, username, login_time, ip_address, status FROM login_history WHERE username LIKE ? OR ip_address LIKE ? OR status = ? ORDER BY login_time DESC LIMIT 200', [likeQ, likeQ, q]);
+    } else {
+        history = getAll('SELECT id, username, login_time, ip_address, status FROM login_history ORDER BY login_time DESC LIMIT 200');
+    }
+    
     return { success: true, history };
 });
 

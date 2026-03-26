@@ -53,6 +53,11 @@
         <h1>Scramjet 登录日志</h1>
         <p>系统账号登录记录</p>
 
+        <div style="display: flex; gap: 8px; margin-bottom: 1rem;">
+            <input type="text" id="searchInput" placeholder="搜索用户名 / IP" autocomplete="off" style="padding: 10px; font-size: 0.9rem;">
+            <button id="searchBtn" style="width: auto; padding: 10px 16px; font-size: 0.9rem;">搜索</button>
+        </div>
+
         <div style="text-align: left;">
             <ul id="historyList" style="list-style: none; padding: 0; max-height: 400px; overflow-y: auto;">
                 <li style="text-align: center; color: #888; font-size: 0.85rem;">加载中...</li>
@@ -66,9 +71,13 @@
     </div>
 
     <script>
-        async function loadHistory() {
+        const searchInput = document.getElementById('searchInput');
+        const searchBtn = document.getElementById('searchBtn');
+
+        async function loadHistory(query = '') {
             try {
-                const res = await fetch('/api/login_history');
+                const url = query ? `/api/login_history?q=${encodeURIComponent(query)}` : '/api/login_history';
+                const res = await fetch(url);
                 if (!res.ok) return;
                 const data = await res.json();
                 if (data.success && data.history) {
@@ -120,6 +129,16 @@
             }
         }).catch(err => {
             window.location.href = '/login.html';
+        });
+
+        searchBtn.addEventListener('click', () => {
+            loadHistory(searchInput.value.trim());
+        });
+
+        searchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                loadHistory(searchInput.value.trim());
+            }
         });
 
         document.getElementById('logoutLink').addEventListener('click', async (e) => {
