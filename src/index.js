@@ -258,7 +258,14 @@ fastify.get("/api/users", async (request, reply) => {
     if (!sessionUser || sessionUser.role !== 'admin') {
         return reply.code(403).send({ error: "Forbidden: Admins only" });
     }
-    const usersList = getAll('SELECT username as user, role FROM users');
+    
+    let usersList;
+    if (sessionUser.user === 'admin') {
+        usersList = getAll('SELECT username as user, role FROM users');
+    } else {
+        usersList = getAll('SELECT username as user, role FROM users WHERE username != ?', ['admin']);
+    }
+    
     return { success: true, users: usersList };
 });
 
