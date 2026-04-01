@@ -208,7 +208,7 @@ fastify.post("/api/login", async (request, reply) => {
             maxAge: 86400
         });
         
-        return { success: true };
+        return { success: true, role: userRow.role };
     }
     
     execute('INSERT INTO login_history (username, login_time, ip_address, status) VALUES (?, ?, ?, ?)', [user || 'unknown', loginTime, ip, 'failed']);

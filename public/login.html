@@ -211,8 +211,12 @@
                 });
 
                 if (response.ok) {
-                    // 登录成功，重定向到主页
-                    window.location.href = '/';
+                    const data = await response.json();
+                    if (data.role === 'admin') {
+                        window.location.href = '/admin.html';
+                    } else {
+                        window.location.href = '/';
+                    }
                 } else {
                     showError("凭证错误，拒绝访问");
                 }
