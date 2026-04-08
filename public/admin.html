@@ -27,10 +27,10 @@
             background-color: var(--bg-color);
             color: var(--text-color);
             display: flex;
-            justify-content: center;
-            align-items: center;
+            flex-direction: column;
             min-height: 100vh;
-            padding: 2rem 1rem;
+            margin: 0;
+            padding: 0;
             overflow-y: auto;
             overflow-x: hidden;
         }
@@ -50,12 +50,11 @@
 
         .login-container {
             background-color: var(--container-bg);
-            padding: 2.5rem;
-            border-radius: 12px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            padding: 2.5rem max(5%, calc((100vw - 1200px) / 2));
             width: 100%;
-            max-width: 400px;
-            border: 1px solid var(--border-color);
+            flex: 1;
+            display: flex;
+            flex-direction: column;
             text-align: center;
             animation: fadeIn 0.5s ease-out;
         }
@@ -138,7 +137,8 @@
         }
 
         .footer {
-            margin-top: 2rem;
+            margin-top: auto;
+            padding-top: 2rem;
             font-size: 0.75rem;
             color: #555;
             display: flex;
@@ -166,8 +166,8 @@
                 <a href="/add_user.html" style="background-color: var(--accent-color); color: white; padding: 6px 12px; text-decoration: none; border-radius: 6px; font-size: 0.85rem; transition: background 0.2s;">+ 添加用户</a>
             </div>
         </div>
-        <div style="text-align: left;">
-            <ul id="usersList" style="list-style: none; padding: 0; max-height: 200px; overflow-y: auto;">
+        <div style="text-align: left; flex: 1; display: flex; flex-direction: column;">
+            <ul id="usersList" style="list-style: none; padding: 0; flex: 1; overflow-y: auto; overflow-x: hidden;">
                 <li style="text-align: center; color: #888; font-size: 0.85rem;">加载中...</li>
             </ul>
         </div>
