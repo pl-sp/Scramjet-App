@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>身份验证 | Hugebridge</title>
+    <title>Authentication | Hugebridge</title>
     <style>
         :root {
             --bg-color: #0f0f12;
@@ -161,24 +161,24 @@
 <body>
 
     <div class="login-container">
-        <h1>访问控制</h1>
-        <p>私有实例，请输入凭证以继续</p>
+    <h1>Access Control</h1>
+    <p>Private instance — enter your credentials to continue</p>
 
         <div class="form-group">
-            <label for="user">用户名</label>
-            <input type="text" id="user" placeholder="输入用户名" autocomplete="off">
+            <label for="user">Username</label>
+            <input type="text" id="user" placeholder="Enter username" autocomplete="off">
         </div>
 
         <div class="form-group">
-            <label for="pass">密码</label>
-            <input type="password" id="pass" placeholder="输入访问密码">
+            <label for="pass">Password</label>
+            <input type="password" id="pass" placeholder="Enter password">
         </div>
 
         <div class="button-group">
-            <button id="loginBtn">验证并进入</button>
+            <button id="loginBtn">Sign in</button>
         </div>
         
-        <div id="message">身份验证失败，请重试</div>
+    <div id="message">Authentication failed. Please try again.</div>
 
         <div class="footer">
             Powered by hugebridge
@@ -196,11 +196,11 @@
             const pass = passInp.value;
 
             if (!user || !pass) {
-                showError("请填写完整信息");
+                showError("Please fill in both fields");
                 return;
             }
 
-            loginBtn.innerText = "验证中...";
+            loginBtn.innerText = "Verifying...";
             loginBtn.disabled = true;
 
             try {
@@ -218,12 +218,12 @@
                         window.location.href = '/';
                     }
                 } else {
-                    showError("凭证错误，拒绝访问");
+                    showError("Invalid credentials — access denied");
                 }
             } catch (err) {
-                showError("网络错误，请稍后再试");
+                showError("Network error. Please try again later");
             } finally {
-                loginBtn.innerText = "验证并进入";
+                loginBtn.innerText = "Sign in";
                 loginBtn.disabled = false;
             }
         }
